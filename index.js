@@ -1,8 +1,6 @@
 exports.handler = (event, context) => {
-  var request = require('request');
-  var baseUrl = 'https://api.smartthings.com/v1/devices/';
   var deviceId;
-  
+
   switch(event.clickType) {
     case 'SINGLE':
       deviceId = process.env.SINGLE_PRESS_DEVICE_ID;
@@ -13,17 +11,43 @@ exports.handler = (event, context) => {
     case 'LONG':
       deviceId = process.env.LONG_PRESS_DEVICE_ID;
   }
+
+  toggleSwitch(deviceId);
+};
+
+function toggleSwitch(deviceId) {
+  var baseUrl = 'https://api.smartthings.com/v1/devices/';
+  var request = require('request');
   
-  var options = {
-    url: baseUrl + deviceId + '/commands',
-    body: JSON.stringify({commands: [{command: 'on', capability: 'switch'}]}),
+  var getOptions = {
+    url: baseUrl + deviceId + '/status',
     headers: {
       'content-type': 'application/json',
       'Authorization': `Bearer ${process.env.ST_ACCESS_TOKEN}`
     }
   };
-  
-  request.post(options, function (error, response, body) {
+
+  request.get(getOptions, function(error, response, body) {
     if(error) throw error;
- });
-};
+    response = JSON.parse(body);
+
+    if (response.components.main.switch.switch.value === 'on') {
+      var switchAction = 'off';
+    } else {
+      switchAction = 'on';
+    }
+
+    var postOptions = {
+      url: baseUrl + deviceId + '/commands',
+      body: JSON.stringify({commands: [{command: switchAction, capability: 'switch'}]}),
+      headers: {
+        'content-type': 'application/json',
+        'Authorization': `Bearer ${process.env.ST_ACCESS_TOKEN}`
+      }
+    };
+
+    request.post(postOptions, function (error, response, body) {
+      if(error) throw error;
+    });
+  });
+}
