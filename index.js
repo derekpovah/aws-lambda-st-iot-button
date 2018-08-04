@@ -1,6 +1,9 @@
-exports.handler = (event, context) => {
-  var deviceId;
+var baseUrl = 'https://api.smartthings.com/v1/devices/';
+var deviceId;
+var deviceStatus;
+var request = require('request');
 
+exports.handler = (event, context) => {
   switch(event.clickType) {
     case 'SINGLE':
       deviceId = process.env.SINGLE_PRESS_DEVICE_ID;
@@ -12,42 +15,42 @@ exports.handler = (event, context) => {
       deviceId = process.env.LONG_PRESS_DEVICE_ID;
   }
 
-  toggleSwitch(deviceId);
+  getDeviceStatus(deviceId);
+  toggleDevice(deviceId, deviceStatus);
 };
 
-function toggleSwitch(deviceId) {
-  var baseUrl = 'https://api.smartthings.com/v1/devices/';
-  var request = require('request');
-  
-  var getOptions = {
+function getDeviceStatus(deviceId) {
+  var options = {
     url: baseUrl + deviceId + '/status',
+    headers: {
+      'Authorization': `Bearer ${process.env.ST_ACCESS_TOKEN}`
+    }
+  };
+
+  request.get(options, function(error, response, body) {
+    if(error) throw error;
+    var json = JSON.parse(body);
+    deviceStatus = json.components.main.switch.switch.value;
+  });
+}
+
+function toggleDevice(deviceId, deviceStatus) {
+  if (deviceStatus === 'on') {
+    var switchAction = 'off';
+  } else {
+    switchAction = 'on';
+  }
+
+  var options = {
+    url: baseUrl + deviceId + '/commands',
+    body: JSON.stringify({commands: [{command: switchAction, capability: 'switch'}]}),
     headers: {
       'content-type': 'application/json',
       'Authorization': `Bearer ${process.env.ST_ACCESS_TOKEN}`
     }
   };
 
-  request.get(getOptions, function(error, response, body) {
+  request.post(options, function (error, response, body) {
     if(error) throw error;
-    response = JSON.parse(body);
-
-    if (response.components.main.switch.switch.value === 'on') {
-      var switchAction = 'off';
-    } else {
-      switchAction = 'on';
-    }
-
-    var postOptions = {
-      url: baseUrl + deviceId + '/commands',
-      body: JSON.stringify({commands: [{command: switchAction, capability: 'switch'}]}),
-      headers: {
-        'content-type': 'application/json',
-        'Authorization': `Bearer ${process.env.ST_ACCESS_TOKEN}`
-      }
-    };
-
-    request.post(postOptions, function (error, response, body) {
-      if(error) throw error;
-    });
   });
 }
